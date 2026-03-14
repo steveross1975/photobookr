@@ -1,0 +1,8 @@
+photobookr/
+__pycache__/
+*.pyc
+.env
+app/static/outputs/*
+app/static/uploads/*
+data/customer_photos/*
+.vscode/
