@@ -176,52 +176,51 @@ def update_template_complete(template_id, name, category, cover_path=None, inner
         conn.close()
 
 def register_complete_template(name, category, source_cover_path, source_inner_path):
-    """
-    Logica completa: 
-    1. Registra l'identità del Template (Padre) nel DB.
-    2. Copia e rinomina i due file fisici (Cover e Inner) nella cartella master.
-    3. Registra i due componenti (Figli) collegandoli al Template.
-    """
     dest_dir = os.path.join(os.path.dirname(__file__), '../../data/templates_master')
     os.makedirs(dest_dir, exist_ok=True)
-    
-    # 1. Creiamo il record del Template Padre
-    template_id = add_template_record(name, category) # Funzione di supporto da aggiungere
-    if not template_id: 
-        return None
 
     files_to_process = [
         (source_cover_path, 'cover'),
         (source_inner_path, 'inner')
     ]
 
+    copied_files = []
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO templates (name, category, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        ''', (name, category.lower()))
+        template_id = cursor.lastrowid
+
         for source_path, comp_type in files_to_process:
-            # Generiamo un nome file pulito: es. "viaggio_giappone_cover.jpg"
             ext = os.path.splitext(source_path)[1]
             clean_name = name.replace(' ', '_').lower()
             filename = f"{clean_name}_{comp_type}{ext}"
             dest_path = os.path.join(dest_dir, filename)
-            
-            # Copia fisica
+
             shutil.copy2(source_path, dest_path)
-            
-            # Registrazione componente nel DB
+            copied_files.append(dest_path)
+
             relative_path = os.path.join('data/templates_master', filename)
-            conn.execute('''
+            cursor.execute('''
                 INSERT INTO template_components (template_id, file_path, component_type, updated_at)
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             ''', (template_id, relative_path, comp_type))
-            
+
         conn.commit()
         return template_id
     except Exception as e:
-        print(f"Errore durante la registrazione dei file template: {e}")
+        conn.rollback()
+        for path in copied_files:
+            if os.path.exists(path):
+                os.remove(path)
+        print(f"Errore registrazione template: {e}")
         return None
     finally:
-        if 'conn' in locals():
-            conn.close()
+        conn.close()
 
 def add_template_record(name, category):
     """Semplice inserimento del record padre"""
@@ -240,5 +239,90 @@ def add_template_record(name, category):
     finally:
         conn.close()
 
+# --- BEGIN PROJECT FUNCTIONS ---
+
+def get_all_projects():
+    conn = get_db_connection()
+    projects = conn.execute('SELECT * FROM projects ORDER BY created_at DESC').fetchall()
+    conn.close()
+    return projects
+
+def get_project_by_id(project_id):
+    conn = get_db_connection()
+    project = conn.execute('SELECT * FROM projects WHERE id = ?', (project_id,)).fetchone()
+    conn.close()
+    return project
+
+def create_project(project_name, customer_name=None, template_id=None):
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute('''
+            INSERT INTO projects (project_name, customer_name, template_id, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ''', (project_name, customer_name, template_id))
+        project_id = cursor.lastrowid
+        conn.commit()
+        return project_id
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"Errore creazione progetto: {e}")
+        return None
+    finally:
+        conn.close()
+
+def update_project(project_id, project_name, customer_name=None, template_id=None, status=None):
+    conn = get_db_connection()
+    try:
+        conn.execute('''
+            UPDATE projects
+            SET project_name = ?, customer_name = ?, template_id = ?, status = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (project_name, customer_name, template_id, status, project_id))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"Errore aggiornamento progetto: {e}")
+        return False
+    finally:
+        conn.close()
+
+def delete_project(project_id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM projects WHERE id = ?', (project_id,))
+    conn.commit()
+    conn.close()
+
+# if __name__ == "__main__":
+#    init_db()
+
+
+# Test rapido per verificare che tutto funzioni correttamente
 if __name__ == "__main__":
+    # 1. Reset/Inizializzazione DB
+    print("--- FASE 1: Inizializzazione ---")
     init_db()
+    
+    # 2. Test Registrazione Template Completo
+    print("\n--- FASE 2: Test Inserimento Template ---")
+    # Assicurati che i file test_cover.jpg e test_inner.jpg esistano nella root
+    if os.path.exists("test_cover.jpg") and os.path.exists("test_inner.jpg"):
+        new_id = register_complete_template(
+            name="Viaggio in Giappone", 
+            category="viaggio", 
+            source_cover_path="test_cover.jpg", 
+            source_inner_path="test_inner.jpg"
+        )
+        if new_id:
+            print(f"Successo! Creato template con ID: {new_id}")
+        else:
+            print("Errore durante la registrazione.")
+    else:
+        print("Attenzione: Crea i file test_cover.jpg e test_inner.jpg per testare la copia fisica.")
+
+    # 3. Test Lettura
+    print("\n--- FASE 3: Verifica Dati nel DB ---")
+    templates = get_all_templates()
+    for t in templates:
+        print(f"Template trovato: {t['name']} (Categoria: {t['category']}) - Creato il: {t['created_at']}")

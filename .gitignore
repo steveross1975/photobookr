@@ -5,4 +5,9 @@ __pycache__/
 app/static/outputs/*
 app/static/uploads/*
 data/customer_photos/*
+data/*.db
+data/templates_master/*.jpg
+data/templates_master/*.png
+test_cover.jpg
+test_inner.jpg
 .vscode/
