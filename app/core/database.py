@@ -294,6 +294,64 @@ def delete_project(project_id):
     conn.commit()
     conn.close()
 
+# --- BEGIN PHOTO FUNCTIONS ---
+
+def get_photos_by_project(project_id):
+    conn = get_db_connection()
+    photos = conn.execute(
+        'SELECT * FROM photos WHERE project_id = ? ORDER BY sort_order',
+        (project_id,)
+    ).fetchall()
+    conn.close()
+    return photos
+
+def get_photo_by_id(photo_id):
+    conn = get_db_connection()
+    photo = conn.execute('SELECT * FROM photos WHERE id = ?', (photo_id,)).fetchone()
+    conn.close()
+    return photo
+
+def add_photo(project_id, original_path, sort_order):
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute('''
+            INSERT INTO photos (project_id, original_path, sort_order, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ''', (project_id, original_path, sort_order))
+        photo_id = cursor.lastrowid
+        conn.commit()
+        return photo_id
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"Errore inserimento foto: {e}")
+        return None
+    finally:
+        conn.close()
+
+def update_photo(photo_id, page_number=None, position_data=None, optimized_path=None):
+    conn = get_db_connection()
+    try:
+        conn.execute('''
+            UPDATE photos
+            SET page_number = ?, position_data = ?, optimized_path = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (page_number, position_data, optimized_path, photo_id))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"Errore aggiornamento foto: {e}")
+        return False
+    finally:
+        conn.close()
+
+def delete_photo(photo_id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM photos WHERE id = ?', (photo_id,))
+    conn.commit()
+    conn.close()
+
 # if __name__ == "__main__":
 #    init_db()
 
