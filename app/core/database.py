@@ -122,6 +122,14 @@ def get_all_templates():
     conn.close()
     return templates
 
+def get_template_components(template_id):
+    conn = get_db_connection()
+    components = conn.execute(
+        'SELECT * FROM template_components WHERE template_id = ?', (template_id,)
+    ).fetchall()
+    conn.close()
+    return components
+
 def delete_template(template_id):
     """Rimuove un template dal database (il file fisico andrà rimosso a parte)"""
     conn = get_db_connection()
@@ -284,6 +292,24 @@ def update_project(project_id, project_name, customer_name=None, template_id=Non
     except sqlite3.Error as e:
         conn.rollback()
         print(f"Errore aggiornamento progetto: {e}")
+        return False
+    finally:
+        conn.close()
+
+def set_project_output(project_id, output_folder, total_pages):
+    conn = get_db_connection()
+    try:
+        conn.execute('''
+            UPDATE projects
+            SET output_folder = ?, total_pages = ?, status = 'completed',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (output_folder, total_pages, project_id))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"Errore aggiornamento output progetto: {e}")
         return False
     finally:
         conn.close()
