@@ -2,7 +2,14 @@
 {% block title %}{{ project.project_name }} — PhotoBookr{% endblock %}
 
 {% block content %}
-<div x-data="projectApp({{ project.id }}, {{ photos | tojson }})">
+
+{# Passa i dati via script per evitare conflitti tra virgolette JSON e attributi HTML #}
+<script>
+  const _projectId = {{ project.id }};
+  const _initialPhotos = {{ photos | tojson }};
+</script>
+
+<div x-data="projectApp(_projectId, _initialPhotos)">
 
   <!-- Breadcrumb -->
   <nav class="text-sm text-gray-400 mb-6">
@@ -45,114 +52,90 @@
     @dragleave.prevent="dragOver = false"
     @drop.prevent="handleDrop($event)">
 
-    <template x-if="!uploading">
-      <div>
-        <svg class="w-10 h-10 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-        </svg>
-        <p class="text-gray-600 font-medium">Trascina le foto qui</p>
-        <p class="text-sm text-gray-400 mt-1">oppure</p>
-        <label class="mt-3 inline-block cursor-pointer bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
-          Seleziona file
-          <input type="file" multiple accept="image/*" class="hidden" @change="handleFileInput($event)">
-        </label>
-        <p class="text-xs text-gray-400 mt-3">JPG, PNG, TIFF — più file contemporaneamente</p>
-      </div>
-    </template>
+    <div x-show="!uploading">
+      <svg class="w-10 h-10 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      <p class="text-gray-600 font-medium">Trascina le foto qui</p>
+      <p class="text-sm text-gray-400 mt-1">oppure</p>
+      <label class="mt-3 inline-block cursor-pointer bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+        Seleziona file
+        <input type="file" multiple accept="image/*" class="hidden" @change="handleFileInput($event)">
+      </label>
+      <p class="text-xs text-gray-400 mt-3">JPG, PNG, TIFF — più file contemporaneamente</p>
+    </div>
 
-    <template x-if="uploading">
-      <div class="flex flex-col items-center gap-3">
-        <svg class="w-8 h-8 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-        </svg>
-        <p class="text-sm text-gray-600 font-medium">Caricamento in corso...</p>
-      </div>
-    </template>
+    <div x-show="uploading" style="display:none" class="flex flex-col items-center gap-3">
+      <svg class="w-8 h-8 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+      </svg>
+      <p class="text-sm text-gray-600 font-medium">Caricamento in corso...</p>
+    </div>
   </div>
 
   <!-- Griglia foto -->
-  <template x-if="photos.length > 0">
-    <div class="mb-6">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="font-semibold text-gray-900" x-text="`${photos.length} foto`"></h2>
-        <span class="text-xs text-gray-400">
-          <span x-text="photos.filter(p => p.optimized_path).length"></span> ottimizzate
-        </span>
-      </div>
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        <template x-for="photo in photos" :key="photo.id">
-          <div class="relative group rounded-lg overflow-hidden bg-gray-100 aspect-square">
-            <img :src="photoUrl(photo)" class="w-full h-full object-cover" loading="lazy"
-              onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 1 1%22/>'">
-            <!-- Badge ottimizzata -->
-            <template x-if="photo.optimized_path">
-              <span class="absolute top-1.5 left-1.5 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
-                ✓ AI
-              </span>
-            </template>
-            <!-- Tasto elimina -->
-            <button @click="deletePhoto(photo.id)"
-              class="absolute top-1.5 right-1.5 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold hover:bg-red-600">
-              ✕
-            </button>
-          </div>
-        </template>
-      </div>
+  <div x-show="photos.length > 0" class="mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-semibold text-gray-900" x-text="`${photos.length} foto`"></h2>
+      <span class="text-xs text-gray-400">
+        <span x-text="photos.filter(p => p.optimized_path).length"></span> ottimizzate
+      </span>
     </div>
-  </template>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+      <template x-for="photo in photos" :key="photo.id">
+        <div class="relative group rounded-lg overflow-hidden bg-gray-100 aspect-square">
+          <img :src="photoUrl(photo)" class="w-full h-full object-cover" loading="lazy"
+            onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 1 1%22/>'">
+          <span x-show="photo.optimized_path"
+            class="absolute top-1.5 left-1.5 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+            ✓ AI
+          </span>
+          <button @click="deletePhoto(photo.id)"
+            class="absolute top-1.5 right-1.5 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold hover:bg-red-600">
+            ✕
+          </button>
+        </div>
+      </template>
+    </div>
+  </div>
 
   <!-- Azioni -->
-  <template x-if="photos.length > 0">
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-      <h2 class="font-semibold text-gray-900 mb-4">Azioni</h2>
-      <div class="flex flex-wrap gap-3">
+  <div x-show="photos.length > 0" class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+    <h2 class="font-semibold text-gray-900 mb-4">Azioni</h2>
+    <div class="flex flex-wrap gap-3">
 
-        <!-- Migliora foto -->
-        <button @click="enhanceAll()" :disabled="enhancing"
-          class="flex items-center gap-2 bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-          <template x-if="!enhancing">
-            <span>✨ Migliora tutte le foto</span>
-          </template>
-          <template x-if="enhancing">
-            <span class="flex items-center gap-2">
-              <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-              </svg>
-              Ottimizzazione in corso...
-            </span>
-          </template>
-        </button>
+      <button @click="enhanceAll()" :disabled="enhancing"
+        class="flex items-center gap-2 bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        <span x-show="!enhancing">✨ Migliora tutte le foto</span>
+        <span x-show="enhancing" style="display:none" class="flex items-center gap-2">
+          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          Ottimizzazione in corso...
+        </span>
+      </button>
 
-        <!-- Esporta PDF -->
-        <button @click="exportPdf()" :disabled="exporting"
-          class="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-          <template x-if="!exporting">
-            <span>📄 Esporta PDF</span>
-          </template>
-          <template x-if="exporting">
-            <span class="flex items-center gap-2">
-              <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-              </svg>
-              Generazione PDF...
-            </span>
-          </template>
-        </button>
+      <button @click="exportPdf()" :disabled="exporting"
+        class="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        <span x-show="!exporting">📄 Esporta PDF</span>
+        <span x-show="exporting" style="display:none" class="flex items-center gap-2">
+          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+          </svg>
+          Generazione PDF...
+        </span>
+      </button>
 
-        <!-- Download PDF -->
-        <template x-if="pdfUrl">
-          <a :href="pdfUrl" download
-            class="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
-            ⬇️ Scarica PDF
-          </a>
-        </template>
-      </div>
+      <a x-show="pdfUrl" :href="pdfUrl" download style="display:none"
+        class="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
+        ⬇️ Scarica PDF
+      </a>
     </div>
-  </template>
+  </div>
 
 </div>
 
