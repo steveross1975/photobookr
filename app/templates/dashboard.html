@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Progetti — PhotoBookr{% endblock %}
+
+{% block content %}
+<div x-data="{ showModal: false }">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">I tuoi Fotolibri</h1>
+      <p class="text-sm text-gray-500 mt-1">{{ projects|length }} progett{{ 'o' if projects|length == 1 else 'i' }}</p>
+    </div>
+    <button @click="showModal = true"
+      class="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Nuovo progetto
+    </button>
+  </div>
+
+  <!-- Griglia progetti -->
+  {% if projects %}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    {% for p in projects %}
+    <a href="/projects/{{ p.id }}"
+      class="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all p-5 flex flex-col gap-3">
+      <div class="flex items-start justify-between">
+        <div class="flex-1 min-w-0">
+          <h2 class="font-semibold text-gray-900 truncate">{{ p.project_name }}</h2>
+          {% if p.customer_name %}
+          <p class="text-sm text-gray-500 truncate mt-0.5">{{ p.customer_name }}</p>
+          {% endif %}
+        </div>
+        <span class="ml-2 shrink-0 px-2 py-0.5 text-xs rounded-full font-medium
+          {% if p.status == 'completed' %}bg-green-100 text-green-700
+          {% elif p.status == 'processing' %}bg-amber-100 text-amber-700
+          {% else %}bg-gray-100 text-gray-600{% endif %}">
+          {% if p.status == 'completed' %}Completato
+          {% elif p.status == 'processing' %}In lavorazione
+          {% else %}Bozza{% endif %}
+        </span>
+      </div>
+      <div class="flex items-center gap-4 text-xs text-gray-400 mt-auto pt-2 border-t border-gray-100">
+        <span>{{ p.total_pages }} pagine</span>
+        <span>{{ p.created_at[:10] }}</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-24 text-gray-400">
+    <svg class="w-12 h-12 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+    </svg>
+    <p class="font-medium">Nessun progetto ancora</p>
+    <p class="text-sm mt-1">Crea il tuo primo fotolibro</p>
+  </div>
+  {% endif %}
+
+  <!-- Modal nuovo progetto -->
+  <div x-show="showModal" x-transition
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+    @keydown.escape.window="showModal = false">
+    <div @click.stop class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <h2 class="text-lg font-bold text-gray-900 mb-5">Nuovo progetto</h2>
+      <form method="POST" action="/projects/new" class="flex flex-col gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Nome fotolibro *</label>
+          <input name="project_name" type="text" required placeholder="Es. Matrimonio Bianchi 2025"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+          <input name="customer_name" type="text" placeholder="Es. Mario e Laura Bianchi"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Template</label>
+          <select name="template_id"
+            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">— Nessun template —</option>
+            {% for t in templates %}
+            <option value="{{ t.id }}">{{ t.name }} ({{ t.category }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="flex gap-3 mt-2">
+          <button type="button" @click="showModal = false"
+            class="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-50 transition-colors">
+            Annulla
+          </button>
+          <button type="submit"
+            class="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
+            Crea progetto
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
