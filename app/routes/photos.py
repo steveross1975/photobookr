@@ -79,14 +79,19 @@ def update(photo_id):
 
     data = request.get_json(silent=True) or {}
 
-    position_data = data.get('position_data')
-    if position_data is not None and not isinstance(position_data, dict):
-        return jsonify({'error': 'position_data deve essere un oggetto JSON {x, y, w, h}'}), 400
+    # position_data: None = mantieni, null esplicito = rimuovi, dict = aggiorna
+    if 'position_data' in data:
+        position_data = data['position_data']
+        if position_data is not None and not isinstance(position_data, dict):
+            return jsonify({'error': 'position_data deve essere un oggetto JSON {x, y, w, h}'}), 400
+        serialized_pos = json.dumps(position_data) if position_data else None
+    else:
+        serialized_pos = photo['position_data']
 
     if not update_photo(
         photo_id=photo_id,
         page_number=data.get('page_number', photo['page_number']),
-        position_data=json.dumps(position_data) if position_data else photo['position_data'],
+        position_data=serialized_pos,
         optimized_path=data.get('optimized_path', photo['optimized_path']),
     ):
         return jsonify({'error': "Errore durante l'aggiornamento"}), 500

@@ -50,6 +50,24 @@ def project_detail(project_id):
                            templates=[dict(t) for t in templates])
 
 
+@bp.route('/projects/<int:project_id>/layout')
+def layout_editor(project_id):
+    project = get_project_by_id(project_id)
+    if not project:
+        abort(404)
+    photos = get_photos_by_project(project_id)
+    inner_component = None
+    if project['template_id']:
+        components = get_template_components(project['template_id'])
+        inner_component = next(
+            (dict(c) for c in components if c['component_type'] == 'inner'), None
+        )
+    return render_template('layout.html',
+                           project=dict(project),
+                           photos=[dict(p) for p in photos],
+                           inner_component=inner_component)
+
+
 @bp.route('/templates')
 def templates_page():
     templates = get_all_templates()

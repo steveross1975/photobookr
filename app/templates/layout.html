@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+{% block title %}Layout — {{ project.project_name }}{% endblock %}
+
+{% block content %}
+
+<script>
+  const _projectId = {{ project.id }};
+  const _photos    = {{ photos | tojson }};
+  const _innerBg   = {{ (inner_component.file_path if inner_component else '') | tojson }};
+</script>
+
+<!-- Header compatto -->
+<div class="flex items-center justify-between mb-4">
+  <div class="flex items-center gap-3">
+    <a href="/projects/{{ project.id }}"
+      class="text-gray-400 hover:text-indigo-600 transition-colors">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+    </a>
+    <h1 class="font-bold text-gray-900">Layout — {{ project.project_name }}</h1>
+  </div>
+  <div x-data="layoutApp(_projectId, _photos, _innerBg)" id="layout-root">
+    <!-- I pulsanti sono dentro x-data perché usano i metodi Alpine -->
+  </div>
+</div>
+
+<!-- Editor principale -->
+<div x-data="layoutApp(_projectId, _photos, _innerBg)" class="flex gap-4" style="height: calc(100vh - 160px)">
+
+  <!-- Sidebar foto disponibili -->
+  <div class="w-48 shrink-0 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+    <div class="px-3 py-2 border-b border-gray-100">
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Foto disponibili</p>
+      <p class="text-xs text-gray-400 mt-0.5" x-text="`${sidebarPhotos.length} foto`"></p>
+    </div>
+    <div class="flex-1 overflow-y-auto p-2 flex flex-col gap-2">
+      <template x-for="photo in sidebarPhotos" :key="photo.id">
+        <div class="relative group cursor-pointer rounded-lg overflow-hidden bg-gray-100 aspect-square border-2 border-transparent hover:border-indigo-400 transition-colors"
+          @click="addToPage(photo)">
+          <img :src="photoUrl(photo)" class="w-full h-full object-cover" loading="lazy">
+          <div class="absolute inset-0 bg-indigo-600/0 group-hover:bg-indigo-600/20 transition-colors flex items-center justify-center">
+            <span class="opacity-0 group-hover:opacity-100 bg-white text-indigo-700 text-xs font-bold px-2 py-1 rounded shadow">
+              + Aggiungi
+            </span>
+          </div>
+        </div>
+      </template>
+      <template x-if="sidebarPhotos.length === 0">
+        <p class="text-xs text-gray-400 text-center py-4">Tutte le foto sono state posizionate</p>
+      </template>
+    </div>
+  </div>
+
+  <!-- Area editor -->
+  <div class="flex-1 flex flex-col gap-3 min-w-0">
+
+    <!-- Toolbar pagine + salva -->
+    <div class="flex items-center justify-between bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-2">
+      <div class="flex items-center gap-2">
+        <button @click="prevPage()" :disabled="currentPage === 1"
+          class="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+          ‹
+        </button>
+        <span class="text-sm text-gray-700 font-medium" x-text="`Pagina ${currentPage} di ${maxPage}`"></span>
+        <button @click="nextPage()" :disabled="currentPage === maxPage"
+          class="w-7 h-7 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+          ›
+        </button>
+        <button @click="addPage()"
+          class="ml-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+          + Nuova pagina
+        </button>
+      </div>
+      <div class="flex items-center gap-3">
+        <span x-show="dirty" class="text-xs text-amber-600 font-medium">● Modifiche non salvate</span>
+        <button @click="save()" :disabled="saving"
+          class="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50">
+          <span x-show="!saving">Salva layout</span>
+          <span x-show="saving" style="display:none" class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            Salvataggio...
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Canvas A3 -->
+    <div class="flex-1 overflow-auto flex items-center justify-center bg-gray-200 rounded-xl">
+      <div class="relative shadow-2xl"
+        id="page-canvas"
+        style="aspect-ratio: 420/297; height: min(100%, 600px); background-color: white;"
+        :style="innerBg ? `background-image: url('/media/${innerBg}'); background-size: cover;` : ''">
+
+        <!-- Foto posizionate -->
+        <template x-for="photo in placedPhotos" :key="photo.id">
+          <div class="placed-photo absolute select-none"
+            :data-photo-id="photo.id"
+            :style="`left:${photo.px}px; top:${photo.py}px; width:${photo.pw}px; height:${photo.ph}px`">
+            <img :src="photoUrl(photo)" class="w-full h-full object-cover pointer-events-none block">
+            <!-- Rimuovi dal canvas -->
+            <button
+              @click.stop="removeFromPage(photo.id)"
+              class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs font-bold flex items-center justify-center hover:bg-red-600 shadow z-10"
+              style="line-height:1">×</button>
+            <!-- Handle resize (visual) -->
+            <div class="resize-handle absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
+              style="background: linear-gradient(135deg, transparent 50%, rgba(99,102,241,0.8) 50%)">
+            </div>
+          </div>
+        </template>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/static/js/interact.min.js"></script>
+<script>
+function layoutApp(projectId, photos, innerBg) {
+  return {
+    currentPage: 1,
+    maxPage: 1,
+    placedPhotos: [],
+    sidebarPhotos: [],
+    innerBg,
+    dirty: false,
+    saving: false,
+
+    init() {
+      // Calcola maxPage dai dati esistenti
+      photos.forEach(p => {
+        if (p.page_number && p.page_number > this.maxPage) this.maxPage = p.page_number;
+      });
+      this.loadPage(1);
+      this.$nextTick(() => this.initInteract());
+    },
+
+    loadPage(pageNum) {
+      // Salva posizioni correnti prima di cambiare pagina
+      this._syncPositionsFromDOM();
+
+      this.currentPage = pageNum;
+      const canvas = document.getElementById('page-canvas');
+      const pw = canvas ? canvas.offsetWidth : 840;
+      const ph = canvas ? canvas.offsetHeight : 594;
+
+      this.placedPhotos = photos
+        .filter(p => p.page_number === pageNum && p.position_data)
+        .map(p => {
+          const pos = typeof p.position_data === 'string'
+            ? JSON.parse(p.position_data)
+            : p.position_data;
+          return { ...p, px: pos.x * pw, py: pos.y * ph, pw: pos.w * pw, ph: pos.h * ph };
+        });
+
+      this.sidebarPhotos = photos.filter(p => !p.position_data);
+    },
+
+    addToPage(photo) {
+      const canvas = document.getElementById('page-canvas');
+      const pw = canvas ? canvas.offsetWidth : 840;
+      const ph = canvas ? canvas.offsetHeight : 594;
+
+      const placed = {
+        ...photo,
+        page_number: this.currentPage,
+        px: pw * 0.1,
+        py: ph * 0.1,
+        pw: pw * 0.35,
+        ph: ph * 0.35,
+      };
+      this.placedPhotos.push(placed);
+      this.sidebarPhotos = this.sidebarPhotos.filter(p => p.id !== photo.id);
+      // Aggiorna anche photos in memoria
+      const idx = photos.findIndex(p => p.id === photo.id);
+      if (idx !== -1) photos[idx] = { ...photos[idx], page_number: this.currentPage };
+      this.dirty = true;
+    },
+
+    removeFromPage(photoId) {
+      const photo = this.placedPhotos.find(p => p.id === photoId);
+      this.placedPhotos = this.placedPhotos.filter(p => p.id !== photoId);
+      if (photo) {
+        const clean = { ...photo };
+        delete clean.px; delete clean.py; delete clean.pw; delete clean.ph;
+        clean.position_data = null;
+        clean.page_number = null;
+        this.sidebarPhotos.push(clean);
+        const idx = photos.findIndex(p => p.id === photoId);
+        if (idx !== -1) { photos[idx].position_data = null; photos[idx].page_number = null; }
+      }
+      this.dirty = true;
+    },
+
+    prevPage() {
+      if (this.currentPage > 1) this.loadPage(this.currentPage - 1);
+    },
+
+    nextPage() {
+      if (this.currentPage < this.maxPage) this.loadPage(this.currentPage + 1);
+    },
+
+    addPage() {
+      this.maxPage++;
+      this.loadPage(this.maxPage);
+    },
+
+    async save() {
+      this._syncPositionsFromDOM();
+      this.saving = true;
+
+      const canvas = document.getElementById('page-canvas');
+      const pw = canvas ? canvas.offsetWidth : 840;
+      const ph = canvas ? canvas.offsetHeight : 594;
+
+      const saves = [];
+
+      // Salva foto posizionate
+      document.querySelectorAll('#page-canvas .placed-photo').forEach(el => {
+        const photoId = parseInt(el.dataset.photoId);
+        saves.push(fetch(`/api/photos/${photoId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            page_number: this.currentPage,
+            position_data: {
+              x: parseFloat(el.style.left) / pw,
+              y: parseFloat(el.style.top) / ph,
+              w: parseFloat(el.style.width) / pw,
+              h: parseFloat(el.style.height) / ph,
+            }
+          })
+        }));
+      });
+
+      // Rimuove posizione dalle foto spostate nella sidebar
+      this.sidebarPhotos.forEach(p => {
+        if (p.position_data !== undefined) {
+          saves.push(fetch(`/api/photos/${p.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ position_data: null, page_number: null })
+          }));
+        }
+      });
+
+      await Promise.all(saves);
+      this.saving = false;
+      this.dirty = false;
+    },
+
+    _syncPositionsFromDOM() {
+      document.querySelectorAll('#page-canvas .placed-photo').forEach(el => {
+        const id = parseInt(el.dataset.photoId);
+        const p = this.placedPhotos.find(ph => ph.id === id);
+        if (p) {
+          p.px = parseFloat(el.style.left) || p.px;
+          p.py = parseFloat(el.style.top) || p.py;
+          p.pw = parseFloat(el.style.width) || p.pw;
+          p.ph = parseFloat(el.style.height) || p.ph;
+        }
+      });
+    },
+
+    initInteract() {
+      interact('.placed-photo')
+        .draggable({
+          listeners: {
+            move: (e) => {
+              const el = e.target;
+              const canvas = document.getElementById('page-canvas');
+              const newLeft = Math.max(0, Math.min(canvas.offsetWidth  - el.offsetWidth,  parseFloat(el.style.left || 0) + e.dx));
+              const newTop  = Math.max(0, Math.min(canvas.offsetHeight - el.offsetHeight, parseFloat(el.style.top  || 0) + e.dy));
+              el.style.left = newLeft + 'px';
+              el.style.top  = newTop  + 'px';
+              this.dirty = true;
+            }
+          }
+        })
+        .resizable({
+          edges: { bottom: true, right: true, bottomRight: true },
+          modifiers: [interact.modifiers.restrictSize({ min: { width: 60, height: 60 } })],
+          listeners: {
+            move: (e) => {
+              const el = e.target;
+              el.style.width  = e.rect.width  + 'px';
+              el.style.height = e.rect.height + 'px';
+              el.style.left   = (parseFloat(el.style.left || 0) + e.deltaRect.left) + 'px';
+              el.style.top    = (parseFloat(el.style.top  || 0) + e.deltaRect.top)  + 'px';
+              this.dirty = true;
+            }
+          }
+        });
+    },
+
+    photoUrl(photo) {
+      const path = photo.optimized_path || photo.original_path;
+      return `/media/${path}`;
+    },
+  }
+}
+</script>
+
+<style>
+.placed-photo { border: 2px solid transparent; cursor: move; }
+.placed-photo:hover { border-color: rgba(99,102,241,0.7); }
+.resize-handle { touch-action: none; }
+</style>
+
+{% endblock %}

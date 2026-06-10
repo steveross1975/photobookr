@@ -36,13 +36,23 @@
         {% else %}Bozza{% endif %}
       </span>
     </div>
-    {% if project.template_id %}
-    <p class="text-sm text-gray-400 mt-3">
-      Template: <span class="text-gray-600 font-medium">
-        {% for t in templates %}{% if t.id == project.template_id %}{{ t.name }}{% endif %}{% endfor %}
-      </span>
-    </p>
-    {% endif %}
+    <div class="flex items-center gap-4 mt-3">
+      {% if project.template_id %}
+      <p class="text-sm text-gray-400">
+        Template: <span class="text-gray-600 font-medium">
+          {% for t in templates %}{% if t.id == project.template_id %}{{ t.name }}{% endif %}{% endfor %}
+        </span>
+      </p>
+      {% endif %}
+      <a href="/projects/{{ project.id }}/layout"
+        class="ml-auto text-sm font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
+        </svg>
+        Apri Layout Editor
+      </a>
+    </div>
   </div>
 
   <!-- Upload zone -->
