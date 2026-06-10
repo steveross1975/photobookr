@@ -11,6 +11,7 @@ from app.core.database import (
     get_project_by_id,
     update_photo,
 )
+from app.core.pipeline import enhance_photo
 
 bp = Blueprint('photos', __name__)
 
@@ -106,3 +107,63 @@ def remove(photo_id):
 
     delete_photo(photo_id)
     return '', 204
+
+
+def _enhance_one(photo, root):
+    """Esegue la pipeline su una singola foto e aggiorna il DB. Ritorna (foto aggiornata, errore)."""
+    original_abs = os.path.normpath(os.path.join(root, photo['original_path']))
+    if not os.path.exists(original_abs):
+        return None, f"File non trovato: {photo['original_path']}"
+
+    folder = os.path.dirname(original_abs)
+    filename = os.path.basename(original_abs)
+    optimized_abs = os.path.join(folder, 'optimized', filename)
+
+    enhance_photo(original_abs, optimized_abs)
+
+    rel_path = os.path.join(
+        'data', 'customer_photos', str(photo['project_id']), 'optimized', filename
+    )
+    update_photo(
+        photo_id=photo['id'],
+        page_number=photo['page_number'],
+        position_data=photo['position_data'],
+        optimized_path=rel_path,
+    )
+    return dict(get_photo_by_id(photo['id'])), None
+
+
+@bp.route('/api/photos/<int:photo_id>/enhance', methods=['POST'])
+def enhance_single(photo_id):
+    photo = get_photo_by_id(photo_id)
+    if not photo:
+        return jsonify({'error': 'Foto non trovata'}), 404
+
+    root = os.path.normpath(os.path.join(current_app.root_path, '..'))
+    result, err = _enhance_one(photo, root)
+    if err:
+        return jsonify({'error': err}), 404
+
+    return jsonify(result)
+
+
+@bp.route('/api/projects/<int:project_id>/enhance', methods=['POST'])
+def enhance_project(project_id):
+    if not get_project_by_id(project_id):
+        return jsonify({'error': 'Progetto non trovato'}), 404
+
+    photos = get_photos_by_project(project_id)
+    if not photos:
+        return jsonify({'error': 'Nessuna foto nel progetto'}), 404
+
+    root = os.path.normpath(os.path.join(current_app.root_path, '..'))
+    results, errors = [], []
+
+    for photo in photos:
+        result, err = _enhance_one(photo, root)
+        if err:
+            errors.append({'photo_id': photo['id'], 'error': err})
+        else:
+            results.append(result)
+
+    return jsonify({'enhanced': results, 'errors': errors})
